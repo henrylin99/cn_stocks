@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票图表 - {{ ts_code }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <!-- 头部 -->
+    <div class="header-section py-3">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-2">
+                            <li class="breadcrumb-item"><a href="{{ url_for('index') }}" class="text-white-50">首页</a></li>
+                            {% if batch_id %}
+                            <li class="breadcrumb-item"><a href="{{ url_for('batch_details', batch_id=batch_id) }}" class="text-white-50">批次详情</a></li>
+                            {% endif %}
+                            <li class="breadcrumb-item active text-white" aria-current="page">股票图表</li>
+                        </ol>
+                    </nav>
+                    <h1 class="mb-0"><i class="fas fa-chart-line"></i> {{ ts_code }} 技术分析图表</h1>
+                    <p class="mb-0 mt-2">
+                        分析周期: {{ days }}天 · 策略: {{ strategies|length }}种
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn btn-light btn-sm" onclick="changeDays(7)">7天</button>
+                        <button type="button" class="btn btn-light btn-sm" onclick="changeDays(15)">15天</button>
+                        <button type="button" class="btn btn-light btn-sm" onclick="changeDays(30)">30天</button>
+                        <button type="button" class="btn btn-light btn-sm" onclick="changeDays(60)">60天</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid mt-4">
+        <!-- 图表控制面板 -->
+        <div class="row mb-3">
+            <div class="col">
+                <div class="card">
+                    <div class="card-body py-2">
+                        <div class="row align-items-center">
+                            <div class="col-md-6">
+                                <h6 class="mb-0">使用策略:</h6>
+                                <div class="mt-1">
+                                    {% for strategy in strategies %}
+                                    <span class="badge bg-primary me-1">{{ strategy }}</span>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <button class="btn btn-sm btn-outline-primary" onclick="refreshChart()">
+                                    <i class="fas fa-sync-alt"></i> 刷新图表
+                                </button>
+                                <button class="btn btn-sm btn-outline-success" onclick="downloadChart()">
+                                    <i class="fas fa-download"></i> 下载图表
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表容器 -->
+        <div class="row">
+            <div class="col">
+                <div class="card">
+                    <div class="card-body">
+                        <div id="chartLoading" class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                            <p class="mt-3 text-muted">正在生成图表...</p>
+                        </div>
+                        <div id="stockChart" style="height: 600px; display: none;"></div>
+                        <div id="chartError" class="alert alert-danger" style="display: none;">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <strong>加载失败:</strong> <span id="errorMessage"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 图表说明 -->
+        <div class="row mt-3">
+            <div class="col">
+                <div class="card">
+                    <div class="card-header">
+                        <h6 class="mb-0"><i class="fas fa-info-circle"></i> 图表说明</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <h6>K线图</h6>
+                                <ul class="list-unstyled small">
+                                    <li><i class="fas fa-square text-success"></i> 绿色: 上涨</li>
+                                    <li><i class="fas fa-square text-danger"></i> 红色: 下跌</li>
+                                    <li><i class="fas fa-chart-bar"></i> 成交量在底部显示</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>技术指标</h6>
+                                <ul class="list-unstyled small">
+                                    <li><i class="fas fa-chart-line text-primary"></i> 移动平均线</li>
+                                    <li><i class="fas fa-chart-area text-info"></i> 布林带</li>
+                                    <li><i class="fas fa-wave-square text-warning"></i> RSI, MACD等指标</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-4">
+                                <h6>交易信号</h6>
+                                <ul class="list-unstyled small">
+                                    <li><i class="fas fa-arrow-up text-success"></i> 买入信号</li>
+                                    <li><i class="fas fa-arrow-down text-danger"></i> 卖出信号</li>
+                                    <li><i class="fas fa-minus text-secondary"></i> 观望信号</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentChart = null;
+
+        // 页面加载完成后获取图表
+        document.addEventListener('DOMContentLoaded', function() {
+            loadChart();
+        });
+
+        // 加载图表
+        function loadChart() {
+            showLoading();
+            
+            const url = `/api/stock_chart/{{ ts_code }}?days={{ days }}{% if batch_id %}&batch_id={{ batch_id }}{% endif %}`;
+            
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        hideLoading();
+                        renderChart(JSON.parse(data.chart));
+                    } else {
+                        showError(data.error || '图表生成失败');
+                    }
+                })
+                .catch(error => {
+                    showError('网络请求失败: ' + error.message);
+                });
+        }
+
+        // 渲染图表
+        function renderChart(chartData) {
+            const chartDiv = document.getElementById('stockChart');
+            chartDiv.style.display = 'block';
+            
+            // 配置图表选项
+            const layout = {
+                ...chartData.layout,
+                autosize: true,
+                responsive: true,
+                font: {
+                    family: 'Microsoft YaHei, Arial, sans-serif'
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                margin: {
+                    l: 50,
+                    r: 50,
+                    t: 50,
+                    b: 50
+                }
+            };
+
+            const config = {
+                displayModeBar: true,
+                modeBarButtonsToRemove: ['pan2d', 'lasso2d'],
+                displaylogo: false,
+                toImageButtonOptions: {
+                    format: 'png',
+                    filename: `{{ ts_code }}_chart_${new Date().toISOString().split('T')[0]}`,
+                    height: 800,
+                    width: 1200,
+                    scale: 1
+                }
+            };
+
+            currentChart = Plotly.newPlot(chartDiv, chartData.data, layout, config);
+        }
+
+        // 显示加载状态
+        function showLoading() {
+            document.getElementById('chartLoading').style.display = 'block';
+            document.getElementById('stockChart').style.display = 'none';
+            document.getElementById('chartError').style.display = 'none';
+        }
+
+        // 隐藏加载状态
+        function hideLoading() {
+            document.getElementById('chartLoading').style.display = 'none';
+        }
+
+        // 显示错误
+        function showError(message) {
+            hideLoading();
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('chartError').style.display = 'block';
+        }
+
+        // 切换时间范围
+        function changeDays(days) {
+            const currentUrl = new URL(window.location);
+            currentUrl.searchParams.set('days', days);
+            window.location.href = currentUrl.toString();
+        }
+
+        // 刷新图表
+        function refreshChart() {
+            loadChart();
+        }
+
+        // 下载图表
+        function downloadChart() {
+            if (currentChart) {
+                Plotly.downloadImage('stockChart', {
+                    format: 'png',
+                    width: 1200,
+                    height: 800,
+                    filename: `{{ ts_code }}_chart_${new Date().toISOString().split('T')[0]}`
+                });
+            }
+        }
+
+        // 响应式处理
+        window.addEventListener('resize', function() {
+            if (currentChart) {
+                Plotly.Plots.resize('stockChart');
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>批次详情 - {{ batch.batch_name }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+    <style>
+        body { background-color: #f8f9fa; }
+        .header-section { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .card { box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border: none; }
+        .signal-badge { font-size: 0.8em; }
+        .signal-buy { background-color: #28a745; }
+        .signal-sell { background-color: #dc3545; }
+        .signal-hold { background-color: #6c757d; }
+        .confidence-bar {
+            height: 20px;
+            background-color: #e9ecef;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #ffc107, #dc3545);
+            transition: width 0.3s ease;
+        }
+        .strategy-card {
+            transition: transform 0.2s;
+        }
+        .strategy-card:hover {
+            transform: translateY(-2px);
+        }
+        .stock-row:hover {
+            background-color: #f8f9fa;
+        }
+        .consensus-score {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .table-responsive {
+            max-height: 600px;
+            overflow-y: auto;
+            overflow-x: auto;
+        }
+        
+        /* 确保操作列始终可见 */
+        .table th:last-child,
+        .table td:last-child,
+        .table .actions-column {
+            position: sticky;
+            right: 0;
+            background-color: white;
+            z-index: 10;
+            border-left: 1px solid #dee2e6;
+            min-width: 140px;
+        }
+        
+        .table thead th:last-child,
+        .table thead .actions-column {
+            background-color: #f8f9fa;
+        }
+        
+        /* 策略列宽度优化 */
+        .strategy-column {
+            min-width: 120px;
+            max-width: 150px;
+        }
+        
+        .stock-code-column {
+            min-width: 100px;
+            position: sticky;
+            left: 0;
+            background-color: white;
+            z-index: 9;
+            border-right: 1px solid #dee2e6;
+        }
+        
+        .table thead .stock-code-column {
+            background-color: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <!-- 头部 -->
+    <div class="header-section py-4 mb-4">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb mb-2">
+                            <li class="breadcrumb-item"><a href="{{ url_for('index') }}" class="text-white-50">首页</a></li>
+                            <li class="breadcrumb-item active text-white" aria-current="page">批次详情</li>
+                        </ol>
+                    </nav>
+                    <h1 class="mb-0"><i class="fas fa-chart-bar"></i> {{ batch.batch_name }}</h1>
+                    <p class="mb-0 mt-2">
+                        分析时间: {{ batch.created_at.strftime('%Y-%m-%d %H:%M:%S') }} · 
+                        共 {{ batch.total_stocks }} 只股票
+                    </p>
+                </div>
+                <div class="col-md-4 text-end">
+                    <a href="{{ url_for('index') }}" class="btn btn-light btn-lg">
+                        <i class="fas fa-arrow-left"></i> 返回首页
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 策略汇总统计 -->
+        <div class="row mb-4">
+            {% for strategy_name, summary in batch.strategy_summary.items() %}
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card strategy-card h-100">
+                    <div class="card-header bg-primary text-white">
+                        <h6 class="mb-0">{{ strategy_name }}</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <div class="text-success">
+                                    <i class="fas fa-arrow-up"></i><br>
+                                    <strong>{{ summary.signals['买入'] }}</strong><br>
+                                    <small>买入</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-danger">
+                                    <i class="fas fa-arrow-down"></i><br>
+                                    <strong>{{ summary.signals['卖出'] }}</strong><br>
+                                    <small>卖出</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="text-secondary">
+                                    <i class="fas fa-minus"></i><br>
+                                    <strong>{{ summary.signals['观望'] }}</strong><br>
+                                    <small>观望</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 平均置信度 -->
+                        <div class="mb-2">
+                            <small class="text-muted">平均置信度</small>
+                            {% for signal, confidence in summary.avg_confidence.items() %}
+                            {% if summary.signals[signal] > 0 %}
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="small">{{ signal }}</span>
+                                <span class="small">{{ "%.1f"|format(confidence * 100) }}%</span>
+                            </div>
+                            <div class="confidence-bar">
+                                <div class="confidence-fill" style="width: {{ confidence * 100 }}%"></div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- 股票详细结果 -->
+        <div class="card">
+            <div class="card-header">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h5 class="mb-0"><i class="fas fa-list"></i> 详细分析结果 ({{ batch.total_stocks }}只股票)</h5>
+                    </div>
+                    <div class="col-auto">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-sm btn-outline-success" onclick="filterSignal('买入')">
+                                <i class="fas fa-arrow-up"></i> 买入信号
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="filterSignal('卖出')">
+                                <i class="fas fa-arrow-down"></i> 卖出信号
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="filterSignal('观望')">
+                                <i class="fas fa-minus"></i> 观望信号
+                            </button>
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="filterSignal('')">
+                                <i class="fas fa-list"></i> 全部
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0" id="stockTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="stock-code-column">股票代码</th>
+                                <th>综合推荐</th>
+                                <th>一致性</th>
+                                {% for strategy in batch.strategy_names %}
+                                <th class="strategy-column">{{ strategy }}</th>
+                                {% endfor %}
+                                <th class="actions-column">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for ts_code, strategies in batch.stock_results.items() %}
+                            {% set consensus = get_consensus_for_stock(strategies) %}
+                            <tr class="stock-row" data-consensus="{{ consensus.signal }}">
+                                <td class="stock-code-column">
+                                    <strong>{{ ts_code }}</strong>
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if consensus.signal == '买入' %}
+                                        <span class="badge signal-badge signal-buy me-2">{{ consensus.signal }}</span>
+                                        {% elif consensus.signal == '卖出' %}
+                                        <span class="badge signal-badge signal-sell me-2">{{ consensus.signal }}</span>
+                                        {% else %}
+                                        <span class="badge signal-badge signal-hold me-2">{{ consensus.signal }}</span>
+                                        {% endif %}
+                                        <div class="consensus-score text-{{ 'success' if consensus.confidence > 0.7 else 'warning' if consensus.confidence > 0.5 else 'danger' }}">
+                                            {{ "%.0f"|format(consensus.confidence * 100) }}%
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    {% set agreement = get_strategy_agreement(strategies) %}
+                                    <div class="d-flex align-items-center">
+                                        <div class="confidence-bar flex-grow-1 me-2">
+                                            <div class="confidence-fill" style="width: {{ agreement }}%"></div>
+                                        </div>
+                                        <small class="text-muted">{{ "%.0f"|format(agreement) }}%</small>
+                                    </div>
+                                </td>
+                                {% for strategy_name in batch.strategy_names %}
+                                <td>
+                                    {% if strategy_name in strategies %}
+                                    {% set result = strategies[strategy_name] %}
+                                    <div class="d-flex align-items-center">
+                                        {% if result.signal == '买入' %}
+                                        <i class="fas fa-arrow-up text-success me-1"></i>
+                                        {% elif result.signal == '卖出' %}
+                                        <i class="fas fa-arrow-down text-danger me-1"></i>
+                                        {% else %}
+                                        <i class="fas fa-minus text-secondary me-1"></i>
+                                        {% endif %}
+                                        <small class="text-muted">{{ "%.0f"|format(result.confidence * 100) }}%</small>
+                                    </div>
+                                    {% else %}
+                                    <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                                {% endfor %}
+                                <td class="actions-column">
+                                    <div class="btn-group" role="group">
+                                        <button class="btn btn-sm btn-outline-info" 
+                                                onclick="showStockDetail('{{ ts_code }}')">
+                                            <i class="fas fa-eye"></i> 详情
+                                        </button>
+                                        <a href="{{ url_for('stock_chart_page', ts_code=ts_code, batch_id=batch.batch_id, days=30) }}" 
+                                           class="btn btn-sm btn-outline-primary" target="_blank">
+                                            <i class="fas fa-chart-line"></i> 图表
+                                        </a>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 股票详情模态框 -->
+    <div class="modal fade" id="stockDetailModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">股票详情 - <span id="modalStockCode"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="stockDetailContent">
+                        <div class="text-center py-5">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 筛选信号
+        function filterSignal(signal) {
+            const rows = document.querySelectorAll('#stockTable tbody tr');
+            rows.forEach(row => {
+                if (signal === '' || row.dataset.consensus === signal) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // 更新按钮状态
+            document.querySelectorAll('.btn-group .btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+
+        // 显示股票详情
+        function showStockDetail(tsCode) {
+            document.getElementById('modalStockCode').textContent = tsCode;
+            document.getElementById('stockDetailContent').innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border" role="status">
+                        <span class="visually-hidden">加载中...</span>
+                    </div>
+                </div>
+            `;
+
+            // 显示模态框
+            const modal = new bootstrap.Modal(document.getElementById('stockDetailModal'));
+            modal.show();
+
+            // 这里可以加载股票的详细信息和图表
+            // 暂时显示策略分析结果
+            setTimeout(() => {
+                try {
+                    const stockData = {{ batch.stock_results|tojson }};
+                    const strategies = stockData[tsCode];
+                    
+                    if (!strategies) {
+                        document.getElementById('stockDetailContent').innerHTML = `
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> 找不到该股票的分析数据
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    let content = '<div class="row">';
+                    for (const [strategyName, result] of Object.entries(strategies)) {
+                    content += `
+                        <div class="col-md-6 mb-3">
+                            <div class="card">
+                                <div class="card-header bg-light">
+                                    <h6 class="mb-0">${strategyName}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>信号:</span>
+                                        <span class="badge signal-badge ${result.signal === '买入' ? 'signal-buy' : result.signal === '卖出' ? 'signal-sell' : 'signal-hold'}">
+                                            ${result.signal}
+                                        </span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>置信度:</span>
+                                        <span>${(parseFloat(result.confidence) * 100).toFixed(1)}%</span>
+                                    </div>
+                                    <div class="confidence-bar">
+                                        <div class="confidence-fill" style="width: ${parseFloat(result.confidence) * 100}%"></div>
+                                    </div>
+                                    <div class="mt-2">
+                                        <small class="text-muted">
+                                            分析时间: ${new Date(result.timestamp).toLocaleString()}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                    content += '</div>';
+                    
+                    document.getElementById('stockDetailContent').innerHTML = content;
+                } catch (error) {
+                    console.error('显示股票详情时发生错误:', error);
+                    document.getElementById('stockDetailContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-circle"></i> 加载股票详情时发生错误
+                        </div>
+                    `;
+                }
+            }, 500);
+        }
+    </script>
+
+    <!-- Jinja2 辅助函数 -->
+    <script>
+        // 这些函数在服务器端会被Jinja2处理，这里作为客户端备用
+        function getConsensusForStock(strategies) {
+            const signals = Object.values(strategies).map(s => s.signal);
+            const confidences = Object.values(strategies).map(s => s.confidence);
+            
+            const signalCounts = {
+                '买入': signals.filter(s => s === '买入').length,
+                '卖出': signals.filter(s => s === '卖出').length,
+                '观望': signals.filter(s => s === '观望').length
+            };
+            
+            let consensus = '观望';
+            let maxCount = signalCounts['观望'];
+            
+            if (signalCounts['买入'] > maxCount) {
+                consensus = '买入';
+                maxCount = signalCounts['买入'];
+            }
+            if (signalCounts['卖出'] > maxCount) {
+                consensus = '卖出';
+            }
+            
+            const avgConfidence = confidences.reduce((sum, conf) => sum + conf, 0) / confidences.length;
+            
+            return {
+                signal: consensus,
+                confidence: avgConfidence
+            };
+        }
+        
+        function getStrategyAgreement(strategies) {
+            const signals = Object.values(strategies).map(s => s.signal);
+            const mostCommon = signals.reduce((a, b, i, arr) =>
+                arr.filter(v => v === a).length >= arr.filter(v => v === b).length ? a : b
+            );
+            
+            const agreementCount = signals.filter(s => s === mostCommon).length;
+            return (agreementCount / signals.length) * 100;
+        }
+    </script>
+</body>
+</html>
