@@ -355,3 +355,9 @@ MIT License
 ## 联系方式
 
 如有问题或建议，请通过Issue联系。
+
+# 国内
+https://gitee.com/nepenthes/cn_stocks.git
+
+# 国外
+https://github.com/henrylin99/cn_stocks.git
