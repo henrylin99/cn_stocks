@@ -49,6 +49,8 @@ coverage.xml
 *.log
 local_settings.py
 db.sqlite3
+req-doc.md
+tasks.md
 
 # Flask stuff:
 instance/
